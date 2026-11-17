@@ -15,6 +15,7 @@
 - `POST /api/v1/streams/{stream_id}/offers/{offer_id}/remove` -> `200 OK` `StreamResponse`
 - `POST /api/v1/streams/{stream_id}/offers/{offer_id}/bring-back` -> `200 OK` `StreamResponse`
 - `POST /api/v1/streams/{stream_id}/offers/{offer_id}/pin` -> Optional request `{"share": int | None}` -> `200 OK` `StreamResponse` (`share is None` toggles `is_pinned`; `1 <= share <= 100` sets `is_pinned = True` and `share`)
+- `POST /api/v1/streams/{stream_id}/rebalance` -> `200 OK` `StreamResponse` (stream DTO); unpins active offers, redistributes integer shares evenly to sum to `100%`, and sets `is_dirty = true`. Returns `422` if the stream has no offers or zero active offers.
 - `POST /api/v1/streams/{stream_id}/cancel` -> `200 OK` `StreamResponse`
 - `POST /api/v1/streams/{stream_id}/push` -> `200 OK` `StreamResponse`
 - **Error Envelope (`ErrorResponse`):** `{"error": {"code": str, "message": str, "details": dict[str, str] | None}}` mapped to `404` (`NotFoundError` / `ResourceNotFoundError`), `409` (`ConflictError` / `ResourceConflictError`), `422` (`DomainValidationError` / `RequestValidationError`), `502` (`ExternalServiceError`), `504` (`ExternalServiceTimeoutError`).

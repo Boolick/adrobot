@@ -178,7 +178,7 @@ uv run ruff format --check .
 # 3. Strict static type checking
 uv run pyright
 
-# 4. Unit & integration test suite (29 tests: weights, repositories, Keitaro MockTransport, API flows)
+# 4. Unit & integration test suite (40 tests: weights, repositories, Keitaro MockTransport, API flows)
 uv run pytest
 ```
 
@@ -199,5 +199,5 @@ npm run gen:api
 
 ### Docker Compose Validation (Repository Root)
 ```bash
-docker compose config
+docker compose config --no-interpolate
 ```
