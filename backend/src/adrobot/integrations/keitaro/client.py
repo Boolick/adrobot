@@ -242,14 +242,14 @@ class KeitaroClient:
     async def __aexit__(self, *_args: object) -> None:
         await self.aclose()
 
-    async def _request_json(
+    async def _send(
         self,
         method: str,
         path: str,
         *,
         params: dict[str, str] | None = None,
         json_body: object | None = None,
-    ) -> object:
+    ) -> tuple[httpx.Response, str]:
         """Execute a relative Keitaro HTTP request and map transport/HTTP errors."""
         # Strip leading slash so httpx resolves against the full base_url path (/admin_api/v1/).
         relative_path = path.lstrip("/")
@@ -293,6 +293,18 @@ class KeitaroClient:
             )
             raise ExternalServiceError(message, details=details)
 
+        return response, relative_path
+
+    async def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, str] | None = None,
+        json_body: object | None = None,
+    ) -> object:
+        """Execute a Keitaro request and decode the JSON response body."""
+        response, relative_path = await self._send(method, path, params=params, json_body=json_body)
         try:
             return response.json()
         except ValueError as exc:
@@ -340,6 +352,11 @@ class KeitaroClient:
             json_body=payload.model_dump(exclude_none=True),
         )
         return _validate_model(KeitaroCampaign, raw, method="POST", path="campaigns")
+
+    async def delete_campaign(self, campaign_id: int) -> None:
+        """Delete a campaign via DELETE campaigns/{id}; success bodies (204/empty) are ignored."""
+        _validate_positive_id(campaign_id, field_name="campaign_id")
+        await self._send("DELETE", f"campaigns/{campaign_id}")
 
     async def create_stream(self, payload: KeitaroCreateStreamRequest) -> KeitaroStream:
         """Create a new stream in Keitaro via POST streams."""

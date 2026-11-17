@@ -10,11 +10,12 @@
   - **Request:** `{"name": str (^test_[a-zA-Z0-9_-]+$), "alias": str | None, "geo": list[str] | str = ["AU", "MX"], "initial_offer_id": int, "domain_id": int | None, "group_id": int | None, "traffic_source_id": int | None}`
   - **Response (`201 Created`):** `CampaignDetailResponse` with ordered streams (`position ASC`) and initial staged offer (`share = 100`).
 - `GET /api/v1/campaigns/{campaign_id}` -> `200 OK` `CampaignDetailResponse` (streams ordered by `position ASC, id ASC`; offers ordered by `status ASC, id ASC`; each stream includes `can_push: bool` and `validation_error: str | None`).
-- `POST /api/v1/campaigns/{campaign_id}/streams/fetch` -> `200 OK` `CampaignDetailResponse` (syncs streams via `FETCH STREAMS FROM KT`; Flow 2 preserves `has_offers = True` via `schema == "landings"` or prior `has_offers`; missing KT offers transition to `status = "removed"`).
+- `POST /api/v1/campaigns/{campaign_id}/streams/fetch` -> `200 OK` `CampaignDetailResponse` (syncs streams via `FETCH STREAMS FROM KT`; Flow 2 preserves `has_offers = True` via `schema == "landings"` or prior `has_offers`; missing KT offers transition to `status = "removed"` (unpublished local drafts missing in KT are deleted; duplicate KT offers are summed; non-active/`share <= 0` KT offers become `removed`)).
 - `POST /api/v1/streams/{stream_id}/offers` -> Request `{"offer_id": int, "offer_name": str}` -> `200 OK` `StreamResponse`
 - `POST /api/v1/streams/{stream_id}/offers/{offer_id}/remove` -> `200 OK` `StreamResponse`
 - `POST /api/v1/streams/{stream_id}/offers/{offer_id}/bring-back` -> `200 OK` `StreamResponse`
 - `POST /api/v1/streams/{stream_id}/offers/{offer_id}/pin` -> Optional request `{"share": int | None}` -> `200 OK` `StreamResponse` (`share is None` toggles `is_pinned`; `1 <= share <= 100` sets `is_pinned = True` and `share`)
+- `POST /api/v1/streams/{stream_id}/rebalance` -> `200 OK` `StreamResponse` (stream DTO); unpins active offers, redistributes integer shares evenly to sum to `100%`, and sets `is_dirty = true`. Returns `422` if the stream has no offers or zero active offers.
 - `POST /api/v1/streams/{stream_id}/cancel` -> `200 OK` `StreamResponse`
 - `POST /api/v1/streams/{stream_id}/push` -> `200 OK` `StreamResponse`
 - **Error Envelope (`ErrorResponse`):** `{"error": {"code": str, "message": str, "details": dict[str, str] | None}}` mapped to `404` (`NotFoundError` / `ResourceNotFoundError`), `409` (`ConflictError` / `ResourceConflictError`), `422` (`DomainValidationError` / `RequestValidationError`), `502` (`ExternalServiceError`), `504` (`ExternalServiceTimeoutError`).

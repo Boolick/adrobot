@@ -1,96 +1,155 @@
-import { useEffect, useState } from 'react';
-import { getHealth, type HealthResponse } from '@/shared/api/client';
-import { Badge } from '@/shared/ui';
+import { useCallback, useEffect, useState } from 'react';
+import type { CampaignDetailDto, CampaignSummaryDto } from '@/entities/campaign';
+import { extractErrorInfo, getHealth, isAbortError, listCampaigns } from '@/shared/api';
+import { Button } from '@/shared/ui';
+import {
+  CampaignCreatorWidget,
+  CampaignEditorWidget,
+  CampaignSidebar,
+  type BackendHealthStatus,
+} from '@/widgets';
 
-type HealthStatus = 'checking' | 'connected' | 'disconnected';
+type WorkspaceMode = 'empty' | 'create' | 'detail';
 
-function getBadgeVariant(status: HealthStatus): 'success' | 'error' | 'warning' {
-  if (status === 'connected') {
-    return 'success';
-  }
-  if (status === 'disconnected') {
-    return 'error';
-  }
-  return 'warning';
-}
-
-function getBadgeLabel(status: HealthStatus): string {
-  if (status === 'checking') {
-    return 'Checking...';
-  }
-  if (status === 'connected') {
-    return 'Backend Online';
-  }
-  return 'Backend Offline';
+function toSummaryDto(detail: CampaignDetailDto): CampaignSummaryDto {
+  return {
+    id: detail.id,
+    keitaro_campaign_id: detail.keitaro_campaign_id,
+    name: detail.name,
+    alias: detail.alias,
+    geo: detail.geo,
+    domain_id: detail.domain_id,
+    group_id: detail.group_id,
+    source_id: detail.source_id,
+    created_at: detail.created_at,
+    updated_at: detail.updated_at,
+  };
 }
 
 export function DashboardPage() {
-  const [status, setStatus] = useState<HealthStatus>('checking');
-  const [data, setData] = useState<HealthResponse | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [campaigns, setCampaigns] = useState<CampaignSummaryDto[]>([]);
+  const [campaignsLoading, setCampaignsLoading] = useState(true);
+  const [campaignsError, setCampaignsError] = useState<string | null>(null);
+  const [healthStatus, setHealthStatus] = useState<BackendHealthStatus>('checking');
 
-  const checkHealth = async () => {
-    setStatus('checking');
-    setErrorMessage(null);
-    try {
-      const result = await getHealth();
-      setData(result);
-      setStatus('connected');
-    } catch (err) {
-      setStatus('disconnected');
-      setErrorMessage(err instanceof Error ? err.message : 'Unknown error');
+  const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
+  const [mode, setMode] = useState<WorkspaceMode>('empty');
+
+  const loadCampaigns = useCallback((signal?: AbortSignal) => {
+    setCampaignsLoading(true);
+    setCampaignsError(null);
+
+    void listCampaigns(signal)
+      .then((items) => {
+        setCampaigns(items);
+        setCampaignsLoading(false);
+        setSelectedCampaignId((prevId) => {
+          if (prevId !== null && items.some((c) => c.id === prevId)) {
+            return prevId;
+          }
+          return items[0]?.id ?? null;
+        });
+        setMode((prevMode) => {
+          if (prevMode === 'create') {
+            return 'create';
+          }
+          return items.length > 0 ? 'detail' : 'empty';
+        });
+      })
+      .catch((err: unknown) => {
+        if (isAbortError(err)) {
+          return;
+        }
+        setCampaignsError(extractErrorInfo(err, 'Failed to load campaigns.').message);
+        setCampaignsLoading(false);
+      });
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    loadCampaigns(controller.signal);
+
+    void getHealth(controller.signal)
+      .then(() => setHealthStatus('online'))
+      .catch((err: unknown) => {
+        if (!isAbortError(err)) {
+          setHealthStatus('offline');
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [loadCampaigns]);
+
+  const handleSelectCampaign = (campaignId: number) => {
+    setSelectedCampaignId(campaignId);
+    setMode('detail');
+  };
+
+  const handleNewCampaign = () => {
+    setMode('create');
+  };
+
+  const handleCampaignCreated = (created: CampaignDetailDto) => {
+    const summary = toSummaryDto(created);
+    setCampaigns((prev) => [summary, ...prev.filter((item) => item.id !== summary.id)]);
+    setSelectedCampaignId(created.id);
+    setMode('detail');
+  };
+
+  const handleCancelCreate = () => {
+    if (selectedCampaignId !== null) {
+      setMode('detail');
+    } else if (campaigns.length > 0) {
+      setSelectedCampaignId(campaigns[0].id);
+      setMode('detail');
+    } else {
+      setMode('empty');
     }
   };
 
-  useEffect(() => {
-    void checkHealth();
-  }, []);
-
   return (
-    <main className="app-container">
-      <header className="header">
-        <h1 className="header-title">Adrobot Dashboard</h1>
-        <div className="status-row">
-          <Badge variant={getBadgeVariant(status)}>{getBadgeLabel(status)}</Badge>
-          <button type="button" className="btn" onClick={() => void checkHealth()}>
-            Refresh
-          </button>
-        </div>
-      </header>
+    <div className="workspace-shell">
+      <CampaignSidebar
+        campaigns={campaigns}
+        isLoading={campaignsLoading}
+        error={campaignsError}
+        selectedCampaignId={selectedCampaignId}
+        isCreating={mode === 'create'}
+        healthStatus={healthStatus}
+        onSelectCampaign={handleSelectCampaign}
+        onNewCampaign={handleNewCampaign}
+        onRetry={() => loadCampaigns()}
+      />
 
-      <section className="card">
-        <h2 className="card-title">Backend Connectivity</h2>
-        <p className="card-description">
-          Health check via OpenAPI contract-defined <code>GET /health</code> endpoint.
-        </p>
-
-        <div className="status-row">
-          <span>Status:</span>
-          <strong>{status}</strong>
-        </div>
-
-        {data && (
-          <div style={{ marginTop: '1rem' }}>
-            <span>Response: </span>
-            <code>{JSON.stringify(data)}</code>
-          </div>
+      <main className="workspace-main">
+        {mode === 'create' && (
+          <CampaignCreatorWidget
+            onCreated={handleCampaignCreated}
+            onCancel={campaigns.length > 0 ? handleCancelCreate : undefined}
+          />
         )}
 
-        {errorMessage && (
-          <div style={{ marginTop: '1rem', color: 'var(--color-error)' }}>
-            <span>Error: </span>
-            <code>{errorMessage}</code>
-          </div>
+        {mode === 'detail' && selectedCampaignId !== null && (
+          <CampaignEditorWidget campaignId={selectedCampaignId} />
         )}
-      </section>
 
-      <section className="card">
-        <h2 className="card-title">Architecture Skeleton</h2>
-        <p className="card-description">
-          Feature-Sliced Design (FSD) architecture initialized with Vite, React 19, TypeScript, Zod,
-          and strict ESLint boundaries.
-        </p>
-      </section>
-    </main>
+        {(mode === 'empty' || (mode === 'detail' && selectedCampaignId === null)) && (
+          <section className="empty-workspace" aria-label="Empty workspace">
+            <div className="empty-workspace__card">
+              <h1 className="empty-workspace__title">No campaigns tracked yet</h1>
+              <p className="empty-workspace__subtitle">
+                Create your first 2-stream Keitaro campaign (Flow 1 GEO redirect + Flow 2 Offer
+                stream) to begin staging offer weights and publishing updates.
+              </p>
+              <Button variant="primary" size="md" onClick={handleNewCampaign}>
+                + Create First Campaign
+              </Button>
+            </div>
+          </section>
+        )}
+      </main>
+    </div>
   );
 }

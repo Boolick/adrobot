@@ -7,7 +7,7 @@ import eslintConfigPrettier from 'eslint-config-prettier';
 import boundaries from 'eslint-plugin-boundaries';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'node_modules/**', 'coverage/**', '*.d.ts'] },
+  { ignores: ['dist/**', 'node_modules/**', 'coverage/**', '**/*.d.ts'] },
   // Base configuration
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended, eslintConfigPrettier],

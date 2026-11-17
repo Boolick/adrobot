@@ -64,6 +64,11 @@ class CampaignRepository:
         )
         return await self._session.scalar(stmt)
 
+    async def get_by_name(self, name: str) -> Campaign | None:
+        """Return a Campaign by exact name, or None if not found."""
+        stmt = select(Campaign).where(Campaign.name == name).limit(1)
+        return await self._session.scalar(stmt)
+
     async def get_by_keitaro_id(self, keitaro_campaign_id: int) -> Campaign | None:
         """Return a Campaign by its Keitaro campaign ID, or None if not found."""
         stmt = select(Campaign).where(Campaign.keitaro_campaign_id == keitaro_campaign_id)

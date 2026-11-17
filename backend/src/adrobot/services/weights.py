@@ -48,6 +48,15 @@ def recalculate_shares(offers: Sequence[StreamOffer]) -> None:
         return
 
     remaining = 100 - pinned_sum
+    if remaining < len(unpinned):
+        raise DomainValidationError(
+            "Remaining share is too small to allocate at least 1% to each unpinned active offer",
+            details={
+                "pinned_sum": str(pinned_sum),
+                "remaining": str(remaining),
+                "unpinned_count": str(len(unpinned)),
+            },
+        )
     base_share = remaining // len(unpinned)
     remainder = remaining % len(unpinned)
 

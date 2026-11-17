@@ -19,10 +19,15 @@
     - Each unpinned active offer receives `remaining // count`.
     - Any remainder `remaining % count` is added to the **last** unpinned active offer (e.g., 3 unpinned offers -> `33, 33, 34`).
   - If all active offers are pinned, their shares must already sum strictly to `100`.
+  - Every unpinned active offer must receive at least `1%`: if `remaining < len(unpinned_active)` (e.g., pinned `100%` plus a new offer), `ADD`, `PIN`, and `BRING BACK` fail immediately with `422` instead of staging a `0%` active offer (Keitaro rejects active offers with `share <= 0`).
+  - `REMOVE` auto-unpin: if after removal every remaining active offer is pinned and their shares do not sum to `100`, those offers are unpinned and rebalanced to `100%`.
 - **BR-2.4 (No Duplicate Offers per Stream):** The same `keitaro_offer_id` must not appear twice within the same `stream_id` (enforced via DB unique constraint on `(stream_id, keitaro_offer_id)`). Reactivating a removed offer uses `BRING BACK` on the existing row rather than creating a duplicate. `[DERIVED-LOGIC]`
 - **BR-2.5 (Staging Sync — `FETCH STREAMS FROM KT` & Empty-Offer Streams):** `[CONFIRMED-TZ]`
   - Streams fetched from `GET campaigns/{id}/streams` with `offers == []` (e.g., Flow 1) are persisted with `has_offers = False` and rendered as compact stream headers without parsing filters or redirects.
   - Offers previously stored locally in a stream that are missing from Keitaro's response are **not deleted**; they transition to `status = "removed"`, `share = 0`, `is_pinned = False` so the user can restore them with `BRING BACK`.
+  - Offers that were never published (`is_published == False`, i.e. local drafts) and are missing from Keitaro are **deleted** instead of being archived as published-`removed` ghost rows.
+  - Duplicate `offer_id` entries inside one Keitaro stream are aggregated (shares summed, warning logged). Keitaro offers with `state != "active"` or `share <= 0` are stored as `status = "removed"`, `share = 0` (a later `PUSH` therefore omits them from Keitaro).
+  - `FETCH` overwrites local staged edits of the campaign's streams (a warning is logged when dirty streams are overwritten).
 - **BR-2.6 (Staging Lifecycle — `REMOVE`, `CANCEL`, and `PUSH TO KT`):** `[CONFIRMED-TZ]`
   - `REMOVE`: Sets local `status = "removed"`, `share = 0`, `is_pinned = False`, and marks the stream `is_dirty = True`. On `PUSH TO KT`, only `status == "active"` offers are sent to `PUT streams/{id}`; removed offers remain archived locally for `BRING BACK`.
   - `CANCEL`: Deletes local `stream_offers` where `is_published == False` (newly added, never pushed) and restores `is_published == True` offers to `published_share` and `published_status`, resetting `is_dirty = False`.

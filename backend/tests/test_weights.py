@@ -133,3 +133,30 @@ def test_validate_stream_for_push_rejects_bad_sum_or_zero_share_active_offer() -
         False,
         "Each active offer must have a share of at least 1%",
     )
+
+
+def test_recalculate_shares_rejects_when_remaining_cannot_cover_unpinned() -> None:
+    """Verify pinned 100% plus an unpinned offer, or remaining < unpinned count, is rejected."""
+    full_pinned_plus_new = [
+        _make_offer(offer_id=1, keitaro_offer_id=10, share=100, is_pinned=True),
+        _make_offer(offer_id=None, keitaro_offer_id=20),
+    ]
+    with pytest.raises(DomainValidationError, match="too small"):
+        recalculate_shares(full_pinned_plus_new)
+
+    tight = [
+        _make_offer(offer_id=1, keitaro_offer_id=10, share=98, is_pinned=True),
+        _make_offer(offer_id=2, keitaro_offer_id=20),
+        _make_offer(offer_id=3, keitaro_offer_id=30),
+        _make_offer(offer_id=4, keitaro_offer_id=40),
+    ]
+    with pytest.raises(DomainValidationError, match="too small"):
+        recalculate_shares(tight)
+
+    exact = [
+        _make_offer(offer_id=1, keitaro_offer_id=10, share=98, is_pinned=True),
+        _make_offer(offer_id=2, keitaro_offer_id=20),
+        _make_offer(offer_id=3, keitaro_offer_id=30),
+    ]
+    recalculate_shares(exact)
+    assert [o.share for o in exact] == [98, 1, 1]
