@@ -215,7 +215,7 @@ export function CreateCampaignForm({ onCreated, onCancel }: CreateCampaignFormPr
             setFieldErrors((prev) => ({ ...prev, alias: undefined }));
           }}
           placeholder="test-bullo-campaign1"
-          hint="Optional tracking URL slug in Keitaro."
+          hint="Optional — auto-generated if left blank."
           error={fieldErrors.alias}
           disabled={isSubmitting}
         />

@@ -56,7 +56,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("KEITARO_API_URL", "KEITARO_BASE_URL"),
     )
     keitaro_api_key: SecretStr = SecretStr("")
-    keitaro_timeout_seconds: float = Field(default=15.0, gt=0.0, le=120.0)
+    keitaro_timeout_seconds: float = Field(default=45.0, gt=0.0, le=120.0)
     keitaro_default_domain_id: int = Field(default=1813, gt=0)
     keitaro_default_group_id: int = Field(default=10332, gt=0)
     keitaro_default_traffic_source_id: int = Field(default=836, gt=0)

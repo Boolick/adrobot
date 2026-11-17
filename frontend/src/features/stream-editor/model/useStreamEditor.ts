@@ -9,6 +9,7 @@ import {
   isAbortError,
   pinStreamOffer,
   pushStreamToKt,
+  rebalanceStream,
   removeStreamOffer,
 } from '@/shared/api';
 import type { StreamDto } from '@/entities/stream';
@@ -22,6 +23,7 @@ export interface StreamEditorCommands {
   removeOffer: (streamId: number, offerId: number) => Promise<boolean>;
   bringBackOffer: (streamId: number, offerId: number) => Promise<boolean>;
   togglePin: (streamId: number, offerId: number, share?: number) => Promise<boolean>;
+  rebalance: (streamId: number) => Promise<boolean>;
   cancelChanges: (streamId: number) => Promise<boolean>;
   pushToKt: (streamId: number) => Promise<boolean>;
   dismissActionError: () => void;
@@ -215,6 +217,16 @@ export function useStreamEditor(campaignId: number | null): UseStreamEditorResul
     [runStreamMutation],
   );
 
+  const rebalance = useCallback(
+    (streamId: number) =>
+      runStreamMutation(
+        { type: 'REBALANCE_STREAM', streamId },
+        () => rebalanceStream(streamId),
+        'Failed to rebalance stream offers to 100%.',
+      ),
+    [runStreamMutation],
+  );
+
   const cancelChanges = useCallback(
     (streamId: number) =>
       runStreamMutation(
@@ -264,6 +276,7 @@ export function useStreamEditor(campaignId: number | null): UseStreamEditorResul
       removeOffer,
       bringBackOffer,
       togglePin,
+      rebalance,
       cancelChanges,
       pushToKt,
       dismissActionError,

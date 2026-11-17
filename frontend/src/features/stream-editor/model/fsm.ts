@@ -127,6 +127,9 @@ export function streamEditorReducer(
     case 'TOGGLE_PIN':
       return startMutation(state, 'TOGGLE_PIN', action.streamId, action.offerId);
 
+    case 'REBALANCE_STREAM':
+      return startMutation(state, 'REBALANCE_STREAM', action.streamId);
+
     case 'CANCEL_CHANGES':
       return startMutation(state, 'CANCEL_CHANGES', action.streamId);
 

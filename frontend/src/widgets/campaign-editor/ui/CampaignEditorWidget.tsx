@@ -166,6 +166,7 @@ export function CampaignEditorWidget({ campaignId }: CampaignEditorWidgetProps) 
               onRemoveOffer={commands.removeOffer}
               onBringBackOffer={commands.bringBackOffer}
               onTogglePin={commands.togglePin}
+              onRebalance={commands.rebalance}
               onCancelChanges={commands.cancelChanges}
               onPushToKt={commands.pushToKt}
             />
