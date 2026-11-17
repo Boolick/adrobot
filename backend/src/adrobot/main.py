@@ -1,5 +1,6 @@
 """FastAPI application entrypoint and lifecycle management."""
 
+import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -8,19 +9,38 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from adrobot.api import api_v1_router, health_router, register_exception_handlers
 from adrobot.core.config import get_settings
+from adrobot.core.exceptions import ConfigurationError
 from adrobot.core.logging import configure_logging
 from adrobot.db.session import engine
+from adrobot.integrations.keitaro import KeitaroClient
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
-    """Configure logging on startup and dispose database connections on shutdown."""
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Configure logging, share one pooled KeitaroClient, and dispose resources on shutdown."""
     settings = get_settings()
     configure_logging(settings.log_level)
+    keitaro_client: KeitaroClient | None = None
+    try:
+        keitaro_client = KeitaroClient(
+            base_url=settings.keitaro_api_url,
+            api_key=settings.keitaro_api_key,
+            timeout_seconds=settings.keitaro_timeout_seconds,
+        )
+    except ConfigurationError as exc:
+        # Keep the API bootable (e.g. /health); Keitaro-backed routes will return a config error.
+        logger.warning("Keitaro client not initialized: %s", exc.message)
+    app.state.keitaro_client = keitaro_client
     try:
         yield
     finally:
-        await engine.dispose()
+        try:
+            if keitaro_client is not None:
+                await keitaro_client.aclose()
+        finally:
+            await engine.dispose()
 
 
 def create_app() -> FastAPI:

@@ -5,10 +5,12 @@ import logging
 import re
 from collections.abc import Sequence
 
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from adrobot.core.config import Settings
-from adrobot.core.exceptions import DomainValidationError, NotFoundError
+from adrobot.core.exceptions import ConflictError, DomainValidationError, NotFoundError
+from adrobot.core.locks import campaign_name_locks
+from adrobot.core.tasks import run_shielded
 from adrobot.db.repositories import CampaignRepository, StreamRepository
 from adrobot.integrations.keitaro import (
     KeitaroClient,
@@ -83,10 +85,12 @@ class CampaignService:
         self,
         *,
         session: AsyncSession,
+        session_factory: async_sessionmaker[AsyncSession],
         keitaro: KeitaroClient,
         settings: Settings,
     ) -> None:
         self._session = session
+        self._session_factory = session_factory
         self._keitaro = keitaro
         self._settings = settings
         self._campaigns = CampaignRepository(session)
@@ -201,113 +205,164 @@ class CampaignService:
                     details={field_name: str(val)},
                 )
 
-        # Execute all Keitaro HTTP calls before opening any local SQLite write transaction.
-        kt_campaign = await self._keitaro.create_campaign(
-            KeitaroCreateCampaignRequest(
+        # Run the whole Keitaro + DB workflow in a shielded task: a client disconnect must not
+        # abandon the flow half-way (orphaned Keitaro campaign without a local record).
+        campaign_id = await run_shielded(
+            self._provision_campaign(
                 name=validated_name,
                 alias=resolved_alias,
-                type="position",
-                state="active",
-                cost_type="CPC",
+                geo_list=geo_list,
+                initial_offer_id=initial_offer_id,
                 domain_id=resolved_domain_id,
                 group_id=resolved_group_id,
-                traffic_source_id=resolved_source_id,
-            )
+                source_id=resolved_source_id,
+            ),
+            name=f"create_campaign:{validated_name}",
         )
+        return await self.get_campaign_detail(campaign_id)
 
-        try:
-            kt_flow1 = await self._keitaro.create_stream(
-                KeitaroCreateStreamRequest(
-                    campaign_id=kt_campaign.id,
-                    type="regular",
-                    name="Geo -> Google",
-                    position=1,
-                    state="active",
-                    stream_schema="redirect",
-                    action_type="http",
-                    action_payload=_FLOW1_REDIRECT_URL,
-                    filters=[
-                        KeitaroStreamFilter(
-                            name="country",
-                            mode="accept",
-                            payload=geo_list,
-                        )
-                    ],
-                )
-            )
-            kt_flow2 = await self._keitaro.create_stream(
-                KeitaroCreateStreamRequest(
-                    campaign_id=kt_campaign.id,
-                    type="default",
-                    name="Offers",
-                    position=2,
-                    state="active",
-                    stream_schema="landings",
-                    action_type="http",
-                    offers=[
-                        KeitaroStreamOfferItem(
-                            offer_id=initial_offer_id,
-                            share=100,
-                            state="active",
-                        )
-                    ],
-                )
-            )
-        except Exception:
-            logger.error(
-                "Stream creation failed after Keitaro campaign creation "
-                "(keitaro_campaign_id=%s, name=%s)",
-                kt_campaign.id,
-                kt_campaign.name,
-            )
-            raise
+    async def _provision_campaign(
+        self,
+        *,
+        name: str,
+        alias: str | None,
+        geo_list: list[str],
+        initial_offer_id: int,
+        domain_id: int,
+        group_id: int,
+        source_id: int,
+    ) -> int:
+        """Create campaign + 2 streams in Keitaro and persist locally; compensate on failure.
 
+        Uses its own DB session (the request session may be closed if the client disconnects)
+        and serializes concurrent requests for the same campaign name.
+        """
+        async with campaign_name_locks.acquire(name), self._session_factory() as session:
+            campaigns = CampaignRepository(session)
+            streams = StreamRepository(session)
+
+            async with session.begin():
+                existing = await campaigns.get_by_name(name)
+            if existing is not None:
+                raise ConflictError(
+                    f"Campaign {name!r} already exists.",
+                    details={"name": name},
+                )
+
+            kt_campaign = await self._keitaro.create_campaign(
+                KeitaroCreateCampaignRequest(
+                    name=name,
+                    alias=alias,
+                    type="position",
+                    state="active",
+                    cost_type="CPC",
+                    domain_id=domain_id,
+                    group_id=group_id,
+                    traffic_source_id=source_id,
+                )
+            )
+
+            flow1_id: int | None = None
+            flow2_id: int | None = None
+            try:
+                kt_flow1 = await self._keitaro.create_stream(
+                    KeitaroCreateStreamRequest(
+                        campaign_id=kt_campaign.id,
+                        type="regular",
+                        name="Geo -> Google",
+                        position=1,
+                        state="active",
+                        stream_schema="redirect",
+                        action_type="http",
+                        action_payload=_FLOW1_REDIRECT_URL,
+                        filters=[
+                            KeitaroStreamFilter(
+                                name="country",
+                                mode="accept",
+                                payload=geo_list,
+                            )
+                        ],
+                    )
+                )
+                flow1_id = kt_flow1.id
+                kt_flow2 = await self._keitaro.create_stream(
+                    KeitaroCreateStreamRequest(
+                        campaign_id=kt_campaign.id,
+                        type="default",
+                        name="Offers",
+                        position=2,
+                        state="active",
+                        stream_schema="landings",
+                        action_type="http",
+                        offers=[
+                            KeitaroStreamOfferItem(
+                                offer_id=initial_offer_id,
+                                share=100,
+                                state="active",
+                            )
+                        ],
+                    )
+                )
+                flow2_id = kt_flow2.id
+
+                async with session.begin():
+                    campaign = await campaigns.create(
+                        keitaro_campaign_id=kt_campaign.id,
+                        name=kt_campaign.name,
+                        alias=kt_campaign.alias if kt_campaign.alias is not None else alias,
+                        geo=",".join(geo_list),
+                        domain_id=domain_id,
+                        group_id=group_id,
+                        source_id=source_id,
+                    )
+                    await streams.create_stream(
+                        campaign_id=campaign.id,
+                        keitaro_stream_id=kt_flow1.id,
+                        name=kt_flow1.name,
+                        position=kt_flow1.position,
+                        has_offers=False,
+                        is_dirty=False,
+                    )
+                    flow2 = await streams.create_stream(
+                        campaign_id=campaign.id,
+                        keitaro_stream_id=kt_flow2.id,
+                        name=kt_flow2.name,
+                        position=kt_flow2.position,
+                        has_offers=True,
+                        is_dirty=False,
+                    )
+                    await streams.create_offer(
+                        stream_id=flow2.id,
+                        keitaro_offer_id=initial_offer_id,
+                        offer_name=f"Offer #{initial_offer_id}",
+                        share=100,
+                        is_pinned=False,
+                        status="active",
+                        is_published=True,
+                        published_share=100,
+                        published_status="active",
+                    )
+                    local_campaign_id = campaign.id
+            except BaseException:
+                logger.error(
+                    "Campaign provisioning failed after Keitaro campaign creation; compensating "
+                    "(keitaro_campaign_id=%s, flow1_id=%s, flow2_id=%s)",
+                    kt_campaign.id,
+                    flow1_id,
+                    flow2_id,
+                )
+                await self._delete_keitaro_campaign_best_effort(kt_campaign.id)
+                raise
+            return local_campaign_id
+
+    async def _delete_keitaro_campaign_best_effort(self, keitaro_campaign_id: int) -> None:
+        """Delete an orphaned Keitaro campaign; log CRITICAL (never raise) if cleanup fails."""
         try:
-            async with self._session.begin():
-                campaign = await self._campaigns.create(
-                    keitaro_campaign_id=kt_campaign.id,
-                    name=kt_campaign.name,
-                    alias=kt_campaign.alias if kt_campaign.alias is not None else resolved_alias,
-                    geo=",".join(geo_list),
-                    domain_id=resolved_domain_id,
-                    group_id=resolved_group_id,
-                    source_id=resolved_source_id,
-                )
-                await self._streams.create_stream(
-                    campaign_id=campaign.id,
-                    keitaro_stream_id=kt_flow1.id,
-                    name=kt_flow1.name,
-                    position=kt_flow1.position,
-                    has_offers=False,
-                    is_dirty=False,
-                )
-                flow2 = await self._streams.create_stream(
-                    campaign_id=campaign.id,
-                    keitaro_stream_id=kt_flow2.id,
-                    name=kt_flow2.name,
-                    position=kt_flow2.position,
-                    has_offers=True,
-                    is_dirty=False,
-                )
-                await self._streams.create_offer(
-                    stream_id=flow2.id,
-                    keitaro_offer_id=initial_offer_id,
-                    offer_name=f"Offer #{initial_offer_id}",
-                    share=100,
-                    is_pinned=False,
-                    status="active",
-                    is_published=True,
-                    published_share=100,
-                    published_status="active",
-                )
+            await self._keitaro.delete_campaign(keitaro_campaign_id)
         except Exception:
             logger.critical(
-                "Local DB persistence failed after Keitaro campaign creation "
-                "(keitaro_campaign_id=%s, flow1_id=%s, flow2_id=%s)",
-                kt_campaign.id,
-                kt_flow1.id,
-                kt_flow2.id,
+                "Failed to delete orphaned Keitaro campaign; manual cleanup required "
+                "(keitaro_campaign_id=%s)",
+                keitaro_campaign_id,
+                exc_info=True,
             )
-            raise
-
-        return await self.get_campaign_detail(campaign.id)

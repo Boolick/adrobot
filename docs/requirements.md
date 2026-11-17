@@ -25,7 +25,7 @@
   - Local SQLite stores `campaign_streams` and `stream_offers` as a staging layer (`is_dirty` drives the yellow highlight indicator in UI) `[CONFIRMED-TZ]`
   - Streams without offers (`offers == []`, e.g., Flow 1) are stored with `has_offers = False` and rendered as compact stream headers without parsing filters or redirects `[CONFIRMED-TZ]`
 - **Core Capabilities & State Transitions:**
-  - **`FETCH STREAMS FROM KT`:** Syncs streams from `GET campaigns/{id}/streams`. Offers previously stored locally in a stream that are missing in Keitaro are NOT deleted; they transition to `status = "removed"`, `share = 0`, and remain available for `BRING BACK` `[CONFIRMED-TZ]`
+  - **`FETCH STREAMS FROM KT`:** Syncs streams from `GET campaigns/{id}/streams`. Offers previously stored locally in a stream that are missing in Keitaro are NOT deleted; they transition to `status = "removed"`, `share = 0`, and remain available for `BRING BACK` `[CONFIRMED-TZ]` (exception: unpublished local drafts are deleted, see BR-2.5)
   - **`ADD OFFER` / `BRING BACK`:** Add a new offer (`is_published = False`, `status = "active"`) or reactivate a locally archived (`status = "removed"`) offer, marking the stream `is_dirty = True` and recalculating shares `[CONFIRMED-TZ]`
   - **`REMOVE`:** Sets local `status = "removed"`, `share = 0`, `is_pinned = False`, and marks stream `is_dirty = True`. On `PUSH TO KT`, only `status == "active"` offers are sent to `PUT streams/{id}`; removed offers stay archived locally for `BRING BACK` `[CONFIRMED-TZ]`
   - **`CANCEL`:** Deletes local `stream_offers` where `is_published == False` (newly added, never pushed) and restores `is_published == True` offers to `published_share` and `published_status`, resetting `is_dirty = False` `[CONFIRMED-TZ]`

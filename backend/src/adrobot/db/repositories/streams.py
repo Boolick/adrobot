@@ -70,14 +70,21 @@ class StreamRepository:
         )
         return await self._session.scalar(stmt)
 
-    async def get_stream_by_keitaro_id(self, keitaro_stream_id: int) -> CampaignStream | None:
-        """Return a CampaignStream with eagerly loaded offers by Keitaro stream ID, or None."""
+    async def get_stream_by_keitaro_id(
+        self,
+        keitaro_stream_id: int,
+        *,
+        campaign_id: int | None = None,
+    ) -> CampaignStream | None:
+        """Return a CampaignStream with offers by Keitaro stream ID (optionally campaign-scoped)."""
         stmt = (
             select(CampaignStream)
             .where(CampaignStream.keitaro_stream_id == keitaro_stream_id)
             .options(selectinload(CampaignStream.offers))
             .execution_options(populate_existing=True)
         )
+        if campaign_id is not None:
+            stmt = stmt.where(CampaignStream.campaign_id == campaign_id)
         return await self._session.scalar(stmt)
 
     async def list_streams_by_campaign(self, campaign_id: int) -> Sequence[CampaignStream]:
@@ -103,7 +110,7 @@ class StreamRepository:
         is_dirty: bool | None = None,
     ) -> CampaignStream:
         """Create or update a CampaignStream keyed by keitaro_stream_id, with offers loaded."""
-        existing = await self.get_stream_by_keitaro_id(keitaro_stream_id)
+        existing = await self.get_stream_by_keitaro_id(keitaro_stream_id, campaign_id=campaign_id)
         if existing is None:
             return await self.create_stream(
                 campaign_id=campaign_id,
@@ -114,7 +121,6 @@ class StreamRepository:
                 is_dirty=False if is_dirty is None else is_dirty,
             )
 
-        existing.campaign_id = campaign_id
         existing.name = name
         existing.position = position
         existing.has_offers = has_offers
@@ -125,9 +131,14 @@ class StreamRepository:
             await self._session.flush()
         except IntegrityError as exc:
             await self._session.rollback()
-            raise ResourceNotFoundError(
-                f"Campaign with id={campaign_id} was not found.",
-                details={"campaign_id": str(campaign_id)},
+            if _is_foreign_key_error(exc):
+                raise ResourceNotFoundError(
+                    f"Campaign with id={campaign_id} was not found.",
+                    details={"campaign_id": str(campaign_id)},
+                ) from exc
+            raise ResourceConflictError(
+                f"CampaignStream with keitaro_stream_id={keitaro_stream_id} conflicts.",
+                details={"keitaro_stream_id": str(keitaro_stream_id)},
             ) from exc
         return existing
 

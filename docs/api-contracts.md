@@ -10,7 +10,7 @@
   - **Request:** `{"name": str (^test_[a-zA-Z0-9_-]+$), "alias": str | None, "geo": list[str] | str = ["AU", "MX"], "initial_offer_id": int, "domain_id": int | None, "group_id": int | None, "traffic_source_id": int | None}`
   - **Response (`201 Created`):** `CampaignDetailResponse` with ordered streams (`position ASC`) and initial staged offer (`share = 100`).
 - `GET /api/v1/campaigns/{campaign_id}` -> `200 OK` `CampaignDetailResponse` (streams ordered by `position ASC, id ASC`; offers ordered by `status ASC, id ASC`; each stream includes `can_push: bool` and `validation_error: str | None`).
-- `POST /api/v1/campaigns/{campaign_id}/streams/fetch` -> `200 OK` `CampaignDetailResponse` (syncs streams via `FETCH STREAMS FROM KT`; Flow 2 preserves `has_offers = True` via `schema == "landings"` or prior `has_offers`; missing KT offers transition to `status = "removed"`).
+- `POST /api/v1/campaigns/{campaign_id}/streams/fetch` -> `200 OK` `CampaignDetailResponse` (syncs streams via `FETCH STREAMS FROM KT`; Flow 2 preserves `has_offers = True` via `schema == "landings"` or prior `has_offers`; missing KT offers transition to `status = "removed"` (unpublished local drafts missing in KT are deleted; duplicate KT offers are summed; non-active/`share <= 0` KT offers become `removed`)).
 - `POST /api/v1/streams/{stream_id}/offers` -> Request `{"offer_id": int, "offer_name": str}` -> `200 OK` `StreamResponse`
 - `POST /api/v1/streams/{stream_id}/offers/{offer_id}/remove` -> `200 OK` `StreamResponse`
 - `POST /api/v1/streams/{stream_id}/offers/{offer_id}/bring-back` -> `200 OK` `StreamResponse`

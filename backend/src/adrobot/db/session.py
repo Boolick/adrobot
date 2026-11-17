@@ -1,5 +1,6 @@
 """Async SQLAlchemy 2.0 engine, DeclarativeBase, and session lifecycle."""
 
+import asyncio
 from collections.abc import AsyncIterator
 from typing import ClassVar, Protocol
 
@@ -44,10 +45,11 @@ def _enable_sqlite_foreign_keys(
     dbapi_connection: _DBAPIConnection,
     _connection_record: object,
 ) -> None:
-    """Enable SQLite foreign key constraint checks and ON DELETE CASCADE per connection."""
+    """Enable SQLite foreign keys (ON DELETE CASCADE) and a 5s busy timeout per connection."""
     cursor = dbapi_connection.cursor()
     try:
         cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA busy_timeout=5000")
     finally:
         cursor.close()
 
@@ -84,11 +86,19 @@ async_session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
 )
 
 
+def get_session_factory() -> async_sessionmaker[AsyncSession]:
+    """Return the process-wide session factory (overridable in tests via dependency_overrides)."""
+    return async_session_factory
+
+
 async def get_db_session() -> AsyncIterator[AsyncSession]:
-    """Yield an async database session and roll back on unhandled errors."""
-    async with async_session_factory() as session:
-        try:
-            yield session
-        except Exception:
-            await session.rollback()
-            raise
+    """Yield an async session; roll back on any error (incl. cancellation) and always close."""
+    session = async_session_factory()
+    try:
+        yield session
+    except BaseException:
+        # Shielded so a second cancellation cannot abort the rollback mid-flight.
+        await asyncio.shield(session.rollback())
+        raise
+    finally:
+        await asyncio.shield(session.close())

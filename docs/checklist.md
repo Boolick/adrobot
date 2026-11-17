@@ -38,6 +38,7 @@
 - [x] Pure weight distribution calculator (`PIN` preservation + even split `//` across unpinned active offers + remainder `%` on last unpinned active offer, sum strictly `100`, `validate_stream_for_push`).
 - [x] Staging service logic: `FETCH STREAMS FROM KT` (`has_offers = False` compact streams, resilient `schema == "landings"` / existing flag, missing offers archived as `status = "removed"`), `ADD OFFER`, `REMOVE`, `BRING BACK`, `PIN` (toggle or explicit share), `CANCEL` (delete `is_published == False`, restore `published_share` / `published_status`), `PUSH TO KT` (only `status == "active"` sent to `PUT streams/{id}`).
 - [x] FastAPI endpoints (`POST /api/v1/campaigns/{campaign_id}/streams/fetch`, `POST /api/v1/streams/{stream_id}/offers`, `.../remove`, `.../bring-back`, `.../pin`, `.../cancel`, `.../push`) + unit and API integration tests.
+- [x] Reliability hardening: `remaining >= len(unpinned)` weight guard + `REMOVE` auto-unpin, per-stream/per-campaign-name locks, snapshot-based `PUSH`, shielded create/push persistence with Keitaro `DELETE campaigns/{id}` compensation, `FETCH` hygiene (draft deletion, duplicate aggregation, inactive offers), campaign-scoped stream upsert, shared lifespan `KeitaroClient`, SQLite `busy_timeout`.
 
 ## Phase 5: Frontend & Final Polish (`[MUST-HAVE]`)
 

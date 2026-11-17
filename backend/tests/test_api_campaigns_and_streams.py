@@ -1,5 +1,6 @@
 """End-to-end API integration tests for `/api/v1` dictionaries, campaigns, and stream editor."""
 
+import asyncio
 import json
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
@@ -13,7 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from adrobot.api.dependencies import get_keitaro_client
 from adrobot.core.config import Settings, get_settings
-from adrobot.db.session import Base, create_engine_from_url, get_db_session
+from adrobot.db.session import (
+    Base,
+    create_engine_from_url,
+    get_db_session,
+    get_session_factory,
+)
 from adrobot.integrations.keitaro import KeitaroClient
 from adrobot.main import create_app
 
@@ -33,6 +39,8 @@ class _FakeKeitaroState:
     )
     force_error: tuple[int, dict[str, object]] | None = None
     force_timeout: bool = False
+    fail_nth_stream_post: int | None = None
+    stream_posts: int = 0
     offers_catalog: list[dict[str, object]] = field(
         default_factory=lambda: [
             {"id": 55, "name": "AU Nutra Primary", "group_id": 1, "state": "active"},
@@ -54,6 +62,15 @@ class _FakeKeitaroState:
             return httpx.Response(status_code, json=err_payload)
 
         path = request.url.path
+        if request.method == "DELETE" and path.startswith("/admin_api/v1/campaigns/"):
+            cid = int(path.split("/")[4])
+            self.campaigns = [c for c in self.campaigns if c["id"] != cid]
+            self.streams_by_campaign.pop(cid, None)
+            return httpx.Response(204)
+        if request.method == "POST" and path == "/admin_api/v1/streams":
+            self.stream_posts += 1
+            if self.fail_nth_stream_post == self.stream_posts:
+                return httpx.Response(406, json={"name": ["Stream rejected"]})
         if request.method == "GET" and path == "/admin_api/v1/domains":
             return httpx.Response(
                 200, json=[{"id": 1813, "name": "kylovoa.com", "state": "active"}]
@@ -163,6 +180,7 @@ async def api_env() -> AsyncGenerator[tuple[FastAPI, _FakeKeitaroState], None]:
 
     app.dependency_overrides[get_settings] = lambda: test_settings
     app.dependency_overrides[get_db_session] = override_db_session
+    app.dependency_overrides[get_session_factory] = lambda: session_factory
     app.dependency_overrides[get_keitaro_client] = override_keitaro_client
 
     try:
@@ -534,13 +552,10 @@ async def test_api_error_mapping_404_409_422_502_504(
             f"/api/v1/streams/{flow2_id}/offers/55/pin",
             json={"share": 100},
         )
-        assert pin_100.status_code == 200
-        assert pin_100.json()["can_push"] is False
-        assert (
-            pin_100.json()["validation_error"]
-            == "Each active offer must have a share of at least 1%"
-        )
-        assert (await client.post(f"/api/v1/streams/{flow2_id}/push")).status_code == 422
+        # Pinning 55=100 would leave 0% for 66 -> rejected at mutation time (422)
+        assert pin_100.status_code == 422
+        assert "too small" in pin_100.json()["error"]["message"]
+        assert (await client.post(f"/api/v1/streams/{flow2_id}/push")).status_code == 200
 
         # 502 from Keitaro 406 error
         fake_kt.force_error = (406, {"name": ["Campaign name already exists"]})
@@ -557,3 +572,152 @@ async def test_api_error_mapping_404_409_422_502_504(
         kt_timeout = await client.get("/api/v1/dictionaries")
         assert kt_timeout.status_code == 504
         assert kt_timeout.json()["error"]["code"] == "EXTERNAL_SERVICE_TIMEOUT"
+
+
+async def _create_campaign(client: httpx.AsyncClient, name: str) -> tuple[int, int, int]:
+    resp = await client.post("/api/v1/campaigns", json={"name": name, "initial_offer_id": 55})
+    assert resp.status_code == 201
+    body = resp.json()
+    return body["id"], body["keitaro_campaign_id"], body["streams"][1]["id"]
+
+
+async def test_create_campaign_compensates_keitaro_when_flow2_fails(
+    api_env: tuple[FastAPI, _FakeKeitaroState],
+) -> None:
+    """A failed Flow 2 POST must delete the orphaned Keitaro campaign and leave no local row."""
+    app, fake_kt = api_env
+    fake_kt.fail_nth_stream_post = 2
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        resp = await client.post(
+            "/api/v1/campaigns", json={"name": "test_bullo_comp", "initial_offer_id": 55}
+        )
+        assert resp.status_code == 502
+        assert ("DELETE", "/admin_api/v1/campaigns/500", None) in fake_kt.recorded_calls
+        assert fake_kt.campaigns == []
+        assert (await client.get("/api/v1/campaigns")).json() == []
+
+
+async def test_create_campaign_duplicate_name_returns_409(
+    api_env: tuple[FastAPI, _FakeKeitaroState],
+) -> None:
+    """A second create with an already tracked name is rejected before touching Keitaro."""
+    app, fake_kt = api_env
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        await _create_campaign(client, "test_bullo_dupname")
+        before = len(fake_kt.campaigns)
+        resp = await client.post(
+            "/api/v1/campaigns", json={"name": "test_bullo_dupname", "initial_offer_id": 55}
+        )
+        assert resp.status_code == 409
+        assert len(fake_kt.campaigns) == before
+
+
+async def test_add_rejected_422_when_pinned_100_and_remove_auto_unpins(
+    api_env: tuple[FastAPI, _FakeKeitaroState],
+) -> None:
+    """ADD is rejected when no share is left; REMOVE of the only unpinned offer rebalances."""
+    app, _ = api_env
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        _, _, flow2_id = await _create_campaign(client, "test_bullo_weights")
+        pin = await client.post(f"/api/v1/streams/{flow2_id}/offers/55/pin", json={"share": 100})
+        assert pin.status_code == 200
+        rejected = await client.post(
+            f"/api/v1/streams/{flow2_id}/offers", json={"offer_id": 66, "offer_name": "B"}
+        )
+        assert rejected.status_code == 422
+        assert "too small" in rejected.json()["error"]["message"]
+
+        await client.post(f"/api/v1/streams/{flow2_id}/offers/55/pin")  # unpin
+        await client.post(f"/api/v1/streams/{flow2_id}/offers", json={"offer_id": 66})
+        pin_60 = await client.post(f"/api/v1/streams/{flow2_id}/offers/55/pin", json={"share": 60})
+        assert pin_60.status_code == 200
+        removed = await client.post(f"/api/v1/streams/{flow2_id}/offers/66/remove")
+        assert removed.status_code == 200
+        active = [o for o in removed.json()["offers"] if o["status"] == "active"]
+        assert [(o["keitaro_offer_id"], o["share"], o["is_pinned"]) for o in active] == [
+            (55, 100, False)
+        ]
+        assert removed.json()["can_push"] is True
+
+
+async def test_fetch_deletes_unpublished_drafts_instead_of_ghosting(
+    api_env: tuple[FastAPI, _FakeKeitaroState],
+) -> None:
+    """FETCH drops unpublished drafts absent from Keitaro rather than archiving them."""
+    app, _ = api_env
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        campaign_id, _, flow2_id = await _create_campaign(client, "test_bullo_fetchdraft")
+        added = await client.post(f"/api/v1/streams/{flow2_id}/offers", json={"offer_id": 66})
+        assert added.status_code == 200
+        fetched = await client.post(f"/api/v1/campaigns/{campaign_id}/streams/fetch")
+        assert fetched.status_code == 200
+        offers = fetched.json()["streams"][1]["offers"]
+        assert [o["keitaro_offer_id"] for o in offers] == [55]
+
+
+async def test_fetch_aggregates_duplicates_and_removes_inactive_offers(
+    api_env: tuple[FastAPI, _FakeKeitaroState],
+) -> None:
+    """Duplicate Keitaro offer ids are summed; disabled or 0% offers become removed."""
+    app, fake_kt = api_env
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        campaign_id, kt_campaign_id, _ = await _create_campaign(client, "test_bullo_fetchdup")
+        fake_kt.streams_by_campaign[kt_campaign_id][1]["offers"] = [
+            {"offer_id": 55, "share": 30, "state": "active"},
+            {"offer_id": 55, "share": 30, "state": "active"},
+            {"offer_id": 66, "share": 40, "state": "disabled"},
+            {"offer_id": 77, "share": 0, "state": "active"},
+        ]
+        fetched = await client.post(f"/api/v1/campaigns/{campaign_id}/streams/fetch")
+        assert fetched.status_code == 200
+        offers = fetched.json()["streams"][1]["offers"]
+        assert [(o["keitaro_offer_id"], o["status"], o["share"]) for o in offers] == [
+            (55, "active", 60),
+            (66, "removed", 0),
+            (77, "removed", 0),
+        ]
+
+
+async def test_double_click_add_offer_yields_single_200_and_409(
+    api_env: tuple[FastAPI, _FakeKeitaroState],
+) -> None:
+    """Concurrent identical ADD requests are serialized: one succeeds, one conflicts cleanly."""
+    app, _ = api_env
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        _, _, flow2_id = await _create_campaign(client, "test_bullo_race")
+        url = f"/api/v1/streams/{flow2_id}/offers"
+        first, second = await asyncio.gather(
+            client.post(url, json={"offer_id": 66}),
+            client.post(url, json={"offer_id": 66}),
+        )
+        assert sorted([first.status_code, second.status_code]) == [200, 409]
+
+
+async def test_push_marks_published_from_snapshot_and_stays_dirty_on_concurrent_edit(
+    api_env: tuple[FastAPI, _FakeKeitaroState],
+) -> None:
+    """Edits staged during the PUT must remain dirty and unpublished after the push finishes."""
+    app, fake_kt = api_env
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        _, _, flow2_id = await _create_campaign(client, "test_bullo_snap")
+        await client.post(f"/api/v1/streams/{flow2_id}/offers", json={"offer_id": 66})
+        pushed = await client.post(f"/api/v1/streams/{flow2_id}/push")
+        assert pushed.status_code == 200
+        body = pushed.json()
+        assert body["is_dirty"] is False
+        assert [(o["share"], o["published_share"]) for o in body["offers"]] == [(50, 50), (50, 50)]
+        assert fake_kt.recorded_calls[-1][:2] == ("PUT", f"/admin_api/v1/streams/{900 + 1}")
