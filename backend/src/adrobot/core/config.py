@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Annotated, Literal, cast
 from urllib.parse import urlparse
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[3]
@@ -44,10 +44,17 @@ class Settings(BaseSettings):
     environment: Literal["development", "staging", "production", "test"] = "development"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     cors_origins: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["http://localhost:5173", "http://localhost:3000"]
+        default_factory=lambda: [
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://localhost:8080",
+        ]
     )
 
-    keitaro_api_url: str = ""
+    keitaro_api_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("KEITARO_API_URL", "KEITARO_BASE_URL"),
+    )
     keitaro_api_key: SecretStr = SecretStr("")
     keitaro_timeout_seconds: float = Field(default=15.0, gt=0.0, le=120.0)
     keitaro_default_domain_id: int = Field(default=1813, gt=0)
