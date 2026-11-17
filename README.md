@@ -6,6 +6,17 @@
 
 ---
 
+## Engineering Intent & Design Rationale
+
+While the baseline task only requires a working wrapper around Keitaro's API, this implementation focuses on reliability patterns essential when automating a live traffic tracker whose HTTP API is non-transactional:
+
+1. **Local SQLite Staging Layer over Direct Mutations:** Editing live offer splits directly in a tracker is error-prone. SQLite acts as a staging buffer (`is_dirty`), storing last-published snapshots (`published_share`, `published_status`) and soft-archived offers (`removed`). Operators can experiment with weights, restore removed offers (`BRING BACK`), or discard drafts (`CANCEL`) locally before atomically committing a verified split (`PUSH TO KT`).
+2. **Compensating Consistency for Multi-Step External Calls:** Creating a campaign in Keitaro requires 3 sequential HTTP calls (`POST campaigns` + 2× `POST streams`). To prevent half-created orphaned campaigns on network errors or client disconnects, creation runs inside a shielded task with automatic compensating cleanup (`DELETE campaigns/{id}`) on partial failure.
+3. **End-to-End Concurrency & Double-Click Protection:** The UI manages stream mutations through an explicit `useReducer` finite state machine (blocking concurrent actions while requests are in flight), paired with per-stream backend locking and snapshot-based `PUSH` state reconciliation to eliminate TOCTOU races.
+4. **Single Source of Truth for Contracts & Math:** Integer weight redistribution and invariants (`sum == 100%`, minimum `1%` per active offer) are isolated in a pure, unit-tested domain module, while frontend API types are generated directly from FastAPI's OpenAPI schema.
+
+---
+
 ## 1. Overview & Architecture
 
 Adrobot is structured as an async modular monolith backend (**Python 3.12+ / FastAPI / SQLAlchemy 2.0 / Pydantic v2 / HTTPX**) paired with a **React 19 / TypeScript / Vite 6** single-page application organized under **Feature-Sliced Design (FSD)**.
