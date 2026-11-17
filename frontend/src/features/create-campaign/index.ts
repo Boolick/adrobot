@@ -1,5 +1,2 @@
-export interface CreateCampaignDraft {
-  name: string;
-  countryCode: string;
-  offerId: number | string;
-}
+export * from './model/schema';
+export { CreateCampaignForm, type CreateCampaignFormProps } from './ui/CreateCampaignForm';

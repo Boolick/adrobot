@@ -42,6 +42,6 @@
 
 ## Phase 5: Frontend & Final Polish (`[MUST-HAVE]`)
 
-- [ ] Minimal clean UI in `frontend/` (Create Campaign form with offer autocomplete + Stream Staging Editor with `is_dirty` highlight, `PIN`, `REMOVE`, `BRING BACK`, `CANCEL`, `PUSH TO KT`).
+- [x] Minimal clean UI in `frontend/` (Create Campaign form with offer autocomplete + Stream Staging Editor with `is_dirty` highlight, `PIN`, `REMOVE`, `BRING BACK`, `CANCEL`, `PUSH TO KT`).
 - [ ] `README.md` with setup, Alembic migration commands, and quality gate instructions.
 - [ ] Final end-to-end verification against live Keitaro sandbox.

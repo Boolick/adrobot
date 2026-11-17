@@ -1,4 +1,1 @@
-export interface CampaignEditorWidgetProps {
-  campaignId: number | string;
-  onUpdate?: () => void;
-}
+export { CampaignEditorWidget, type CampaignEditorWidgetProps } from './ui/CampaignEditorWidget';

@@ -24,10 +24,381 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/dictionaries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fetch Keitaro dictionaries and sandbox defaults
+         * @description Return domains, campaign groups, traffic sources, and sandbox defaults.
+         */
+        get: operations["get_dictionaries_api_v1_dictionaries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Keitaro offers by ID or name
+         * @description Return Keitaro offers matching the optional search query.
+         */
+        get: operations["search_offers_api_v1_offers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List locally tracked campaigns
+         * @description Return locally tracked campaigns ordered newest first.
+         */
+        get: operations["list_campaigns_api_v1_campaigns_get"];
+        put?: never;
+        /**
+         * Create a 2-stream campaign in Keitaro and persist locally
+         * @description Create a campaign with Geo->Google and Offers streams in Keitaro.
+         */
+        post: operations["create_campaign_api_v1_campaigns_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get campaign details with staged streams and offers
+         * @description Return campaign metadata, ordered streams, and staged offers.
+         */
+        get: operations["get_campaign_detail_api_v1_campaigns__campaign_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/streams/fetch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fetch campaign streams from Keitaro into staging DB
+         * @description Sync streams and offers from Keitaro into the local staging layer.
+         */
+        post: operations["fetch_campaign_streams_api_v1_campaigns__campaign_id__streams_fetch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/streams/{stream_id}/offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stage an offer onto a stream
+         * @description Add or reactivate an offer in the local staging table and recalculate shares.
+         */
+        post: operations["add_stream_offer_api_v1_streams__stream_id__offers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/streams/{stream_id}/offers/{offer_id}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a staged stream offer as removed
+         * @description Archive an active offer locally (`status='removed'`) and redistribute shares.
+         */
+        post: operations["remove_stream_offer_api_v1_streams__stream_id__offers__offer_id__remove_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/streams/{stream_id}/offers/{offer_id}/bring-back": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore a locally removed stream offer
+         * @description Restore an archived offer back to active status and recalculate shares.
+         */
+        post: operations["bring_back_stream_offer_api_v1_streams__stream_id__offers__offer_id__bring_back_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/streams/{stream_id}/offers/{offer_id}/pin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Toggle pin or set explicit pinned share for an active offer
+         * @description Toggle pin status or pin to a specific share (1..100) and recalculate shares.
+         */
+        post: operations["pin_stream_offer_api_v1_streams__stream_id__offers__offer_id__pin_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/streams/{stream_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel staged local edits for a stream
+         * @description Delete unpublished staged offers and restore published offer snapshots.
+         */
+        post: operations["cancel_stream_changes_api_v1_streams__stream_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/streams/{stream_id}/push": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Push active staged offers to Keitaro
+         * @description Validate active offers and push them to Keitaro via PUT streams/{id}.
+         */
+        post: operations["push_stream_to_keitaro_api_v1_streams__stream_id__push_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AddStreamOfferRequest
+         * @description Payload to stage an offer onto a stream.
+         */
+        AddStreamOfferRequest: {
+            /** Offer Id */
+            offer_id: number;
+            /**
+             * Offer Name
+             * @default
+             */
+            offer_name: string;
+        };
+        /**
+         * CampaignDetailResponse
+         * @description Locally tracked campaign with ordered streams and staged offers.
+         */
+        CampaignDetailResponse: {
+            /** Id */
+            id: number;
+            /** Keitaro Campaign Id */
+            keitaro_campaign_id: number;
+            /** Name */
+            name: string;
+            /** Alias */
+            alias: string | null;
+            /** Geo */
+            geo: string[];
+            /** Domain Id */
+            domain_id: number | null;
+            /** Group Id */
+            group_id: number | null;
+            /** Source Id */
+            source_id: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Streams */
+            streams: components["schemas"]["StreamResponse"][];
+        };
+        /**
+         * CampaignGroupResponse
+         * @description Keitaro campaign group dictionary option.
+         */
+        CampaignGroupResponse: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Position */
+            position?: number | null;
+            /** Type */
+            type?: string | null;
+        };
+        /**
+         * CampaignSummaryResponse
+         * @description Locally tracked campaign summary.
+         */
+        CampaignSummaryResponse: {
+            /** Id */
+            id: number;
+            /** Keitaro Campaign Id */
+            keitaro_campaign_id: number;
+            /** Name */
+            name: string;
+            /** Alias */
+            alias: string | null;
+            /** Geo */
+            geo: string[];
+            /** Domain Id */
+            domain_id: number | null;
+            /** Group Id */
+            group_id: number | null;
+            /** Source Id */
+            source_id: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * CreateCampaignRequest
+         * @description Payload to create a 2-stream campaign in Keitaro and local DB.
+         */
+        CreateCampaignRequest: {
+            /** Name */
+            name: string;
+            /** Alias */
+            alias?: string | null;
+            /** Geo */
+            geo?: string[] | string;
+            /** Initial Offer Id */
+            initial_offer_id: number;
+            /** Domain Id */
+            domain_id?: number | null;
+            /** Group Id */
+            group_id?: number | null;
+            /** Traffic Source Id */
+            traffic_source_id?: number | null;
+        };
+        /**
+         * DictionariesResponse
+         * @description Aggregated Keitaro dictionaries and sandbox defaults.
+         */
+        DictionariesResponse: {
+            /** Domains */
+            domains: components["schemas"]["DomainResponse"][];
+            /** Groups */
+            groups: components["schemas"]["CampaignGroupResponse"][];
+            /** Traffic Sources */
+            traffic_sources: components["schemas"]["TrafficSourceResponse"][];
+            defaults: components["schemas"]["SandboxDefaultsResponse"];
+        };
+        /**
+         * DomainResponse
+         * @description Keitaro domain dictionary option.
+         */
+        DomainResponse: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** State */
+            state?: string | null;
+            /** Is Ssl */
+            is_ssl?: boolean | null;
+            /** Default Campaign Id */
+            default_campaign_id?: number | null;
+        };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
         /**
          * HealthResponse
          * @description Health check response payload.
@@ -39,6 +410,146 @@ export interface components {
              * @constant
              */
             status: "ok";
+        };
+        /**
+         * OfferResponse
+         * @description Keitaro offer entry returned by offer search.
+         */
+        OfferResponse: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Group Id */
+            group_id?: number | null;
+            /** State */
+            state?: string | null;
+            /** Payout Value */
+            payout_value?: number | null;
+            /** Payout Currency */
+            payout_currency?: string | null;
+        };
+        /**
+         * PinOfferRequest
+         * @description Optional payload to pin an offer to a specific share (1..100) or toggle pin.
+         */
+        PinOfferRequest: {
+            /** Share */
+            share?: number | null;
+        };
+        /**
+         * SandboxDefaultsResponse
+         * @description Default Keitaro dictionary IDs and sandbox naming prefix.
+         */
+        SandboxDefaultsResponse: {
+            /** Domain Id */
+            domain_id: number;
+            /** Group Id */
+            group_id: number;
+            /** Traffic Source Id */
+            traffic_source_id: number;
+            /** Campaign Prefix */
+            campaign_prefix: string;
+        };
+        /**
+         * StreamOfferResponse
+         * @description Staged stream offer state.
+         */
+        StreamOfferResponse: {
+            /** Id */
+            id: number;
+            /** Stream Id */
+            stream_id: number;
+            /** Keitaro Offer Id */
+            keitaro_offer_id: number;
+            /** Offer Name */
+            offer_name: string;
+            /** Share */
+            share: number;
+            /** Is Pinned */
+            is_pinned: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "removed";
+            /** Is Published */
+            is_published: boolean;
+            /** Published Share */
+            published_share: number | null;
+            /** Published Status */
+            published_status: ("active" | "removed") | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * StreamResponse
+         * @description Staged stream state including push readiness flags.
+         */
+        StreamResponse: {
+            /** Id */
+            id: number;
+            /** Campaign Id */
+            campaign_id: number;
+            /** Keitaro Stream Id */
+            keitaro_stream_id: number;
+            /** Name */
+            name: string;
+            /** Position */
+            position: number;
+            /** Has Offers */
+            has_offers: boolean;
+            /** Is Dirty */
+            is_dirty: boolean;
+            /** Can Push */
+            can_push: boolean;
+            /** Validation Error */
+            validation_error: string | null;
+            /** Offers */
+            offers: components["schemas"]["StreamOfferResponse"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * TrafficSourceResponse
+         * @description Keitaro traffic source dictionary option.
+         */
+        TrafficSourceResponse: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** State */
+            state?: string | null;
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
     };
     responses: never;
@@ -65,6 +576,370 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    get_dictionaries_api_v1_dictionaries_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DictionariesResponse"];
+                };
+            };
+        };
+    };
+    search_offers_api_v1_offers_get: {
+        parameters: {
+            query?: {
+                /** @description Optional ID or name substring filter */
+                q?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfferResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_campaigns_api_v1_campaigns_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignSummaryResponse"][];
+                };
+            };
+        };
+    };
+    create_campaign_api_v1_campaigns_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCampaignRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_campaign_detail_api_v1_campaigns__campaign_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fetch_campaign_streams_api_v1_campaigns__campaign_id__streams_fetch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_stream_offer_api_v1_streams__stream_id__offers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stream_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddStreamOfferRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StreamResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_stream_offer_api_v1_streams__stream_id__offers__offer_id__remove_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stream_id: number;
+                offer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StreamResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bring_back_stream_offer_api_v1_streams__stream_id__offers__offer_id__bring_back_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stream_id: number;
+                offer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StreamResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pin_stream_offer_api_v1_streams__stream_id__offers__offer_id__pin_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stream_id: number;
+                offer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PinOfferRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StreamResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_stream_changes_api_v1_streams__stream_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stream_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StreamResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    push_stream_to_keitaro_api_v1_streams__stream_id__push_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stream_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StreamResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
