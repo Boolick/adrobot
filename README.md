@@ -1,3 +1,5 @@
+[English](README.en.md) | [Русский](README.ru.md)
+
 # Adrobot — Keitaro Campaign Creator & Stream Staging Editor
 
 **Adrobot** is a full-stack campaign automation and offer-stream staging platform built for the **Keitaro Admin API (`/admin_api/v1/`)**. It provides a deterministic, two-stream campaign creation workflow (**Создаватор**) and a local-first staging editor (**Редактор**) for managing offer rotations, pinning traffic weights, archiving/restoring offers, and atomically pushing verified traffic shares back to Keitaro.
@@ -176,7 +178,7 @@ uv run ruff format --check .
 # 3. Strict static type checking
 uv run pyright
 
-# 4. Unit & integration test suite (38 tests: weights, repositories, Keitaro MockTransport, API flows)
+# 4. Unit & integration test suite (29 tests: weights, repositories, Keitaro MockTransport, API flows)
 uv run pytest
 ```
 
