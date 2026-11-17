@@ -721,3 +721,106 @@ async def test_push_marks_published_from_snapshot_and_stays_dirty_on_concurrent_
         assert body["is_dirty"] is False
         assert [(o["share"], o["published_share"]) for o in body["offers"]] == [(50, 50), (50, 50)]
         assert fake_kt.recorded_calls[-1][:2] == ("PUT", f"/admin_api/v1/streams/{900 + 1}")
+
+
+async def test_rebalance_stream_normalizes_uneven_shares(
+    api_env: tuple[FastAPI, _FakeKeitaroState],
+) -> None:
+    """REBALANCE (100%) unpins active offers and resets shares evenly to sum to 100%."""
+    app, fake_kt = api_env
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        campaign_id, kt_campaign_id, flow2_id = await _create_campaign(
+            client, "test_bullo_rebalance"
+        )
+
+        # Simulate Keitaro having uneven weights (e.g., 25% + 25% after manual edits)
+        fake_kt.streams_by_campaign[kt_campaign_id][1]["offers"] = [
+            {"offer_id": 55, "share": 25, "state": "active"},
+            {"offer_id": 66, "share": 25, "state": "active"},
+        ]
+        fetch_resp = await client.post(f"/api/v1/campaigns/{campaign_id}/streams/fetch")
+        assert fetch_resp.status_code == 200
+        fetched_flow2 = fetch_resp.json()["streams"][1]
+        assert fetched_flow2["can_push"] is False
+        assert fetched_flow2["validation_error"] == "Active offer shares must sum to 100%"
+        assert [(o["keitaro_offer_id"], o["share"]) for o in fetched_flow2["offers"]] == [
+            (55, 25),
+            (66, 25),
+        ]
+
+        # Call REBALANCE endpoint
+        rebal_resp = await client.post(f"/api/v1/streams/{flow2_id}/rebalance")
+        assert rebal_resp.status_code == 200
+        rebalanced = rebal_resp.json()
+        assert rebalanced["is_dirty"] is True
+        assert rebalanced["can_push"] is True
+        assert rebalanced["validation_error"] is None
+        assert [
+            (o["keitaro_offer_id"], o["share"], o["is_pinned"]) for o in rebalanced["offers"]
+        ] == [
+            (55, 50, False),
+            (66, 50, False),
+        ]
+
+        # Verify pushing to Keitaro succeeds after rebalance
+        push_resp = await client.post(f"/api/v1/streams/{flow2_id}/push")
+        assert push_resp.status_code == 200
+        assert push_resp.json()["is_dirty"] is False
+
+        # If all offers are removed, rebalance returns 422
+        await client.post(f"/api/v1/streams/{flow2_id}/offers/55/remove")
+        await client.post(f"/api/v1/streams/{flow2_id}/offers/66/remove")
+        empty_rebal = await client.post(f"/api/v1/streams/{flow2_id}/rebalance")
+        assert empty_rebal.status_code == 422
+        assert empty_rebal.json()["error"]["code"] == "DOMAIN_VALIDATION_ERROR"
+
+
+async def test_create_campaign_auto_generates_unique_alias_when_blank(
+    api_env: tuple[FastAPI, _FakeKeitaroState],
+) -> None:
+    """Creating a campaign without an alias generates a URL-safe slug with a hex suffix."""
+    app, fake_kt = api_env
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        # 1. Alias explicitly None / omitted
+        resp1 = await client.post(
+            "/api/v1/campaigns",
+            json={"name": "test_bullo_camp_auto", "initial_offer_id": 55},
+        )
+        assert resp1.status_code == 201
+        camp1 = resp1.json()
+        assert camp1["alias"] is not None
+        assert camp1["alias"].startswith("test-bullo-camp-auto-")
+        # Ensure random hex suffix length (slug + "-" + 6 hex chars)
+        assert len(camp1["alias"]) == len("test-bullo-camp-auto-") + 6
+
+        # Check call sent to Keitaro
+        kt_call1 = fake_kt.recorded_calls[0]
+        assert kt_call1[0] == "POST" and kt_call1[1] == "/admin_api/v1/campaigns"
+        assert cast("dict[str, object]", kt_call1[2])["alias"] == camp1["alias"]
+
+        # 2. Alias is empty/whitespace string
+        resp2 = await client.post(
+            "/api/v1/campaigns",
+            json={"name": "test_bullo_camp_blank", "alias": "   ", "initial_offer_id": 55},
+        )
+        assert resp2.status_code == 201
+        camp2 = resp2.json()
+        assert camp2["alias"] is not None
+        assert camp2["alias"].startswith("test-bullo-camp-blank-")
+
+        # 3. Explicit non-empty alias is preserved
+        resp3 = await client.post(
+            "/api/v1/campaigns",
+            json={
+                "name": "test_bullo_camp_explicit",
+                "alias": "my-custom-alias",
+                "initial_offer_id": 55,
+            },
+        )
+        assert resp3.status_code == 201
+        camp3 = resp3.json()
+        assert camp3["alias"] == "my-custom-alias"

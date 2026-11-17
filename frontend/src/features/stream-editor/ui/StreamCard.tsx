@@ -13,6 +13,7 @@ export interface StreamCardProps {
   onRemoveOffer: (streamId: number, offerId: number) => Promise<boolean>;
   onBringBackOffer: (streamId: number, offerId: number) => Promise<boolean>;
   onTogglePin: (streamId: number, offerId: number, share?: number) => Promise<boolean>;
+  onRebalance: (streamId: number) => Promise<boolean>;
   onCancelChanges: (streamId: number) => Promise<boolean>;
   onPushToKt: (streamId: number) => Promise<boolean>;
 }
@@ -101,6 +102,7 @@ export function StreamCard({
   onRemoveOffer,
   onBringBackOffer,
   onTogglePin,
+  onRebalance,
   onCancelChanges,
   onPushToKt,
 }: StreamCardProps) {
@@ -126,6 +128,7 @@ export function StreamCard({
   const isPushing = isStreamPending && pendingAction?.kind === 'PUSH_TO_KT';
   const isCanceling = isStreamPending && pendingAction?.kind === 'CANCEL_CHANGES';
   const isAdding = isStreamPending && pendingAction?.kind === 'ADD_OFFER';
+  const isRebalancing = isStreamPending && pendingAction?.kind === 'REBALANCE_STREAM';
 
   return (
     <section
@@ -166,6 +169,19 @@ export function StreamCard({
             variant="warning"
             title="Cannot push stream to Keitaro"
             message={stream.validation_error}
+            action={
+              activeOfferIds.size > 0 ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={isBusy}
+                  isLoading={isRebalancing}
+                  onClick={() => void onRebalance(stream.id)}
+                >
+                  REBALANCE (100%)
+                </Button>
+              ) : undefined
+            }
           />
         </div>
       )}

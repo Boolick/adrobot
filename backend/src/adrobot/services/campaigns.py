@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import re
+import secrets
 from collections.abc import Sequence
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -37,6 +38,16 @@ logger = logging.getLogger(__name__)
 _CAMPAIGN_NAME_PATTERN = re.compile(r"^test_[a-zA-Z0-9_-]+$")
 _ISO2_GEO_PATTERN = re.compile(r"^[A-Z]{2}$")
 _FLOW1_REDIRECT_URL = "https://google.com/"
+_SLUG_NON_ALNUM = re.compile(r"[^a-z0-9]+")
+
+
+def _generate_alias(name: str) -> str:
+    """Generate a unique URL-safe slug from *name* with a 6-char hex suffix.
+
+    Example: "test_Bullo Campaign 1" → "test-bullo-campaign-1-a3f9c2"
+    """
+    slug = _SLUG_NON_ALNUM.sub("-", name.lower()).strip("-") or "campaign"
+    return f"{slug}-{secrets.token_hex(3)}"
 
 
 def validate_campaign_name(name: str) -> str:
@@ -182,7 +193,7 @@ class CampaignService:
             )
 
         cleaned_alias = alias.strip() if alias is not None else None
-        resolved_alias = cleaned_alias if cleaned_alias else None
+        resolved_alias = cleaned_alias if cleaned_alias else _generate_alias(validated_name)
         resolved_domain_id = (
             domain_id if domain_id is not None else self._settings.keitaro_default_domain_id
         )

@@ -89,6 +89,12 @@ export function pinStreamOffer(
   });
 }
 
+export function rebalanceStream(streamId: number): Promise<StreamResponse> {
+  return apiRequest<StreamResponse>(`/api/v1/streams/${streamId}/rebalance`, {
+    method: 'POST',
+  });
+}
+
 export function cancelStreamChanges(streamId: number): Promise<StreamResponse> {
   return apiRequest<StreamResponse>(`/api/v1/streams/${streamId}/cancel`, {
     method: 'POST',

@@ -1,4 +1,4 @@
-"""FastAPI router for stream offer staging (`ADD`, `REMOVE`, `BRING BACK`, `PIN`, `CANCEL`, `PUSH`).
+"""FastAPI router for stream offer staging (ADD, REMOVE, PIN, REBALANCE, CANCEL, PUSH).
 
 All route handlers delegate business rules and transactions to StreamEditorService.
 """
@@ -76,6 +76,21 @@ async def pin_stream_offer(
     """Toggle pin status or pin to a specific share (1..100) and recalculate shares."""
     share = payload.share if payload is not None else None
     stream = await service.toggle_pin(stream_id, offer_id, share=share)
+    return StreamResponse.model_validate(stream)
+
+
+@router.post(
+    "/{stream_id}/rebalance",
+    response_model=StreamResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Normalize active offer shares to 100%",
+)
+async def rebalance_stream_offers(
+    stream_id: int,
+    service: StreamEditorServiceDep,
+) -> StreamResponse:
+    """Unpin all active offers and redistribute shares evenly so they sum to 100%."""
+    stream = await service.rebalance_stream(stream_id)
     return StreamResponse.model_validate(stream)
 
 

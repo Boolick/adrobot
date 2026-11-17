@@ -4,6 +4,7 @@ export interface AlertBannerProps {
   message: string;
   code?: string;
   details?: Record<string, string> | null;
+  action?: React.ReactNode;
   onDismiss?: () => void;
 }
 
@@ -13,6 +14,7 @@ export function AlertBanner({
   message,
   code,
   details,
+  action,
   onDismiss,
 }: AlertBannerProps) {
   const detailEntries = details ? Object.entries(details) : [];
@@ -38,6 +40,7 @@ export function AlertBanner({
           </ul>
         )}
       </div>
+      {action && <div className="alert__action">{action}</div>}
       {onDismiss && (
         <button
           type="button"

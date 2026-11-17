@@ -43,5 +43,6 @@
 ## Phase 5: Frontend & Final Polish (`[MUST-HAVE]`)
 
 - [x] Minimal clean UI in `frontend/` (Create Campaign form with offer autocomplete + Stream Staging Editor with `is_dirty` highlight, `PIN`, `REMOVE`, `BRING BACK`, `CANCEL`, `PUSH TO KT`).
-- [ ] `README.md` with setup, Alembic migration commands, and quality gate instructions.
-- [ ] Final end-to-end verification against live Keitaro sandbox.
+- [x] Production Docker packaging (`backend/Dockerfile`, `frontend/Dockerfile`, `frontend/nginx.conf`, `docker-compose.yml`, `.env.example`).
+- [x] `README.md` with setup, Alembic migration commands, and quality gate instructions.
+- [x] Final end-to-end verification against live Keitaro sandbox.

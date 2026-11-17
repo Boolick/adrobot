@@ -10,6 +10,7 @@ export type MutationActionKind =
   | 'REMOVE_OFFER'
   | 'BRING_BACK_OFFER'
   | 'TOGGLE_PIN'
+  | 'REBALANCE_STREAM'
   | 'CANCEL_CHANGES'
   | 'PUSH_TO_KT';
 
@@ -44,6 +45,7 @@ export type StreamEditorAction =
   | { type: 'REMOVE_OFFER'; streamId: number; offerId: number }
   | { type: 'BRING_BACK_OFFER'; streamId: number; offerId: number }
   | { type: 'TOGGLE_PIN'; streamId: number; offerId: number }
+  | { type: 'REBALANCE_STREAM'; streamId: number }
   | { type: 'CANCEL_CHANGES'; streamId: number }
   | { type: 'PUSH_TO_KT'; streamId: number }
   | { type: 'FETCH_STREAMS_SUCCESS'; campaignId: number; campaign: CampaignDetailDto }

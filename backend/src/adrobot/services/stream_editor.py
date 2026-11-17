@@ -399,6 +399,32 @@ class StreamEditorService:
 
         return await self._reload_stream_data(stream_id)
 
+    async def rebalance_stream(self, stream_id: int) -> StreamData:
+        """Unpin all active offers and evenly redistribute shares to sum to 100%."""
+        async with stream_locks.acquire(stream_id):
+            return await self._rebalance_stream(stream_id)
+
+    async def _rebalance_stream(self, stream_id: int) -> StreamData:
+        """Unpin all active offers and evenly redistribute shares to sum to 100%."""
+        async with self._session.begin():
+            stream = await self._get_editable_stream(stream_id)
+            active = [o for o in stream.offers if o.status == "active"]
+            if not active:
+                raise DomainValidationError(
+                    "Stream must have at least one active offer to rebalance.",
+                    details={"stream_id": str(stream_id)},
+                )
+
+            # Unpin all active offers so recalculate_shares distributes evenly.
+            for offer in active:
+                offer.is_pinned = False
+
+            recalculate_shares(stream.offers)
+            stream.is_dirty = True
+            await self._session.flush()
+
+        return await self._reload_stream_data(stream_id)
+
     async def push_to_kt(self, stream_id: int) -> StreamData:
         """Validate staged offers, push active offers to Keitaro, and update published state."""
         async with stream_locks.acquire(stream_id):

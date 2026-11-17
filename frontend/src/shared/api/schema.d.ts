@@ -208,6 +208,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/streams/{stream_id}/rebalance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Normalize active offer shares to 100%
+         * @description Unpin all active offers and redistribute shares evenly so they sum to 100%.
+         */
+        post: operations["rebalance_stream_offers_api_v1_streams__stream_id__rebalance_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/streams/{stream_id}/cancel": {
         parameters: {
             query?: never;
@@ -861,6 +881,37 @@ export interface operations {
                 "application/json": components["schemas"]["PinOfferRequest"] | null;
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StreamResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rebalance_stream_offers_api_v1_streams__stream_id__rebalance_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stream_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
